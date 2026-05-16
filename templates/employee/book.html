@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Book a Seat — NoveeBus{% endblock %}
+
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-plus-circle me-2 text-warning"></i>Book a Seat</h4>
+
+<div class="row">
+  <div class="col-lg-6">
+    <div class="card border-secondary">
+      <div class="card-body p-4">
+        <form method="POST" action="{{ url_for('employee.book') }}" id="bookForm">
+          <div class="mb-3">
+            <label class="form-label text-muted small fw-semibold">ROUTE</label>
+            <select name="route_id" id="route_id" class="form-select bg-dark border-secondary text-white" required>
+              <option value="">Select a route...</option>
+              {% for r in routes %}
+              <option value="{{ r.id }}">{{ r.name }} ({{ r.origin }} → {{ r.destination }})</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label text-muted small fw-semibold">SHIFT</label>
+            <select name="shift_id" id="shift_id" class="form-select bg-dark border-secondary text-white" required>
+              <option value="">Select a shift...</option>
+              {% for s in shifts %}
+              <option value="{{ s.id }}">{{ s.name }} ({{ s.departure_time }})</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label text-muted small fw-semibold">DATE</label>
+            <input type="date" name="book_date" id="book_date" class="form-control bg-dark border-secondary text-white"
+                   min="{{ min_date }}" max="{{ max_date }}" value="{{ min_date }}" required>
+          </div>
+
+          <!-- Seats remaining badge -->
+          <div id="seats_info" class="mb-3 d-none">
+            <div class="alert alert-secondary p-2 small mb-0" id="seats_msg"></div>
+          </div>
+
+          <div class="mb-3">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="recurring" id="recurring_check">
+              <label class="form-check-label" for="recurring_check">Recurring booking</label>
+            </div>
+          </div>
+
+          <div id="recur_days_section" class="mb-3 d-none">
+            <label class="form-label text-muted small fw-semibold">REPEAT ON</label>
+            <div class="d-flex gap-2 flex-wrap">
+              {% for day_num, day_name in [(0,'Mon'),(1,'Tue'),(2,'Wed'),(3,'Thu'),(4,'Fri'),(5,'Sat'),(6,'Sun')] %}
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="recur_days" value="{{ day_num }}" id="day{{ day_num }}">
+                <label class="form-check-label" for="day{{ day_num }}">{{ day_name }}</label>
+              </div>
+              {% endfor %}
+            </div>
+            <p class="text-muted small mt-1">Will book for next 4 weeks on selected days.</p>
+          </div>
+
+          <button type="submit" class="btn btn-warning w-100 fw-bold mt-2">
+            <i class="bi bi-check-circle me-1"></i>Confirm Booking
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6 mt-4 mt-lg-0">
+    <div class="card border-secondary h-100">
+      <div class="card-body">
+        <h6 class="text-muted mb-3">Available Routes</h6>
+        {% for r in routes %}
+        <div class="mb-3 p-3 border border-secondary rounded">
+          <div class="d-flex justify-content-between">
+            <strong>{{ r.name }}</strong>
+            <span class="badge bg-secondary">{{ r.capacity }} seats</span>
+          </div>
+          <p class="text-muted small mb-1">{{ r.origin }} → {{ r.destination }}</p>
+          {% if r.stops %}
+          <div class="mt-2">
+            {% for stop in r.stops %}
+            <span class="badge bg-dark border border-secondary me-1 mb-1">
+              <i class="bi bi-geo-alt-fill text-warning me-1"></i>{{ stop.name }}
+              {% if stop.pickup_time %}<span class="text-muted">({{ stop.pickup_time }})</span>{% endif %}
+            </span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const routeSel = document.getElementById('route_id');
+const shiftSel = document.getElementById('shift_id');
+const dateSel = document.getElementById('book_date');
+const seatsInfo = document.getElementById('seats_info');
+const seatsMsg = document.getElementById('seats_msg');
+const recurCheck = document.getElementById('recurring_check');
+const recurSection = document.getElementById('recur_days_section');
+
+recurCheck.addEventListener('change', () => {
+  recurSection.classList.toggle('d-none', !recurCheck.checked);
+});
+
+async function updateSeats() {
+  const rid = routeSel.value, sid = shiftSel.value, dt = dateSel.value;
+  if (!rid || !sid || !dt) { seatsInfo.classList.add('d-none'); return; }
+  try {
+    const res = await fetch(`/employee/seats?route_id=${rid}&shift_id=${sid}&date=${dt}`);
+    const data = await res.json();
+    seatsInfo.classList.remove('d-none');
+    if (data.seats === null) {
+      seatsMsg.className = 'alert alert-warning p-2 small mb-0';
+      seatsMsg.textContent = data.message || 'No schedule for this selection.';
+    } else if (data.seats <= 0) {
+      seatsMsg.className = 'alert alert-danger p-2 small mb-0';
+      seatsMsg.textContent = `Full — 0 / ${data.capacity} seats. You'll be waitlisted.`;
+    } else {
+      seatsMsg.className = 'alert alert-success p-2 small mb-0';
+      seatsMsg.textContent = `${data.seats} / ${data.capacity} seats available`;
+    }
+  } catch(e) { seatsInfo.classList.add('d-none'); }
+}
+
+[routeSel, shiftSel, dateSel].forEach(el => el.addEventListener('change', updateSeats));
+</script>
+{% endblock %}

@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% block title %}Trip — {{ schedule.route.name }} — NoveeBus{% endblock %}
+
+{% block extra_head %}
+<style>
+  #driverMap { height: 250px; border-radius: 8px; }
+  .passenger-card { transition: background 0.3s; }
+  .passenger-card.checked-in { border-color: #198754 !important; }
+  .passenger-card.no-show { border-color: #dc3545 !important; opacity: 0.7; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h5 class="mb-0">{{ schedule.route.name }}</h5>
+    <p class="text-muted small mb-0">{{ schedule.shift.name }} · {{ schedule.date.strftime('%d %b %Y') }}</p>
+  </div>
+  {% if schedule.status == 'scheduled' %}
+    <form method="POST" action="{{ url_for('driver.start_trip', schedule_id=schedule.id) }}">
+      <button class="btn btn-success"><i class="bi bi-play-fill me-1"></i>Start Trip</button>
+    </form>
+  {% elif schedule.status == 'active' %}
+    <form method="POST" action="{{ url_for('driver.end_trip', schedule_id=schedule.id) }}"
+          onsubmit="return confirm('End this trip?')">
+      <button class="btn btn-danger"><i class="bi bi-stop-fill me-1"></i>End Trip</button>
+    </form>
+  {% else %}
+    <span class="badge bg-secondary fs-6">{{ schedule.status|capitalize }}</span>
+  {% endif %}
+</div>
+
+<!-- Map -->
+<div id="driverMap" class="mb-3"></div>
+<div id="tracking_status" class="text-muted small mb-3 text-center">
+  {% if schedule.status == 'active' %}
+    <i class="bi bi-broadcast text-success me-1"></i>Broadcasting location...
+  {% else %}
+    Start trip to share location.
+  {% endif %}
+</div>
+
+<!-- QR Scanner -->
+{% if schedule.status == 'active' %}
+<div class="card border-secondary mb-3">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-qr-code-scan me-2 text-warning"></i>QR Check-In Scanner</span>
+    <button id="startScanBtn" class="btn btn-sm btn-warning">Start Scanner</button>
+  </div>
+  <div class="card-body">
+    <div id="qr-reader" style="max-width:400px;margin:auto;"></div>
+    <div id="scan_result" class="mt-2 text-center"></div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Passenger Manifest -->
+<div class="card border-secondary">
+  <div class="card-header">
+    <i class="bi bi-people me-2"></i>Passengers
+    <span class="badge bg-secondary ms-1">{{ bookings|length }}</span>
+  </div>
+  <div class="card-body p-2">
+    {% if bookings %}
+    <div class="row g-2">
+      {% for b in bookings %}
+      <div class="col-sm-6 col-lg-4">
+        <div class="card border-secondary passenger-card {% if b.status == 'checked_in' %}checked-in{% elif b.status == 'no_show' %}no-show{% endif %}"
+             id="pax_{{ b.id }}">
+          <div class="card-body p-2 d-flex justify-content-between align-items-center">
+            <div>
+              <div class="fw-semibold small">{{ b.user.name }}</div>
+              <div class="text-muted" style="font-size:0.75rem;">{{ b.user.employee_id }}</div>
+            </div>
+            <div class="d-flex gap-1 align-items-center">
+              {% if b.status == 'booked' or b.status == 'waitlisted' %}
+                <span class="badge bg-primary badge-sm" id="badge_{{ b.id }}">
+                  {% if b.status == 'waitlisted' %}Wait{% else %}Booked{% endif %}
+                </span>
+                <button class="btn btn-sm btn-outline-danger py-0 px-1"
+                        onclick="markNoShow({{ b.id }})" title="No Show">
+                  <i class="bi bi-x"></i>
+                </button>
+              {% elif b.status == 'checked_in' %}
+                <span class="badge bg-success" id="badge_{{ b.id }}">✓</span>
+              {% elif b.status == 'no_show' %}
+                <span class="badge bg-danger" id="badge_{{ b.id }}">NS</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted text-center py-3 mb-0">No bookings for this schedule.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/driver_track.js') }}"></script>
+<script>
+const SCHEDULE_ID = {{ schedule.id }};
+const IS_ACTIVE = {{ 'true' if schedule.status == 'active' else 'false' }};
+
+// Init map
+const map = L.map('driverMap').setView([{{ stops[0].lat if stops else 1.3329 }}, {{ stops[0].lon if stops else 103.7436 }}], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors'
+}).addTo(map);
+
+const stops = [
+  {% for s in stops %}
+  { name: "{{ s.name }}", lat: {{ s.lat }}, lon: {{ s.lon }} },
+  {% endfor %}
+];
+stops.forEach(s => {
+  L.circleMarker([s.lat, s.lon], { radius: 8, color: '#ffc107', fillColor: '#ffc107', fillOpacity: 0.8 })
+    .bindPopup(s.name).addTo(map);
+});
+if (stops.length > 1) {
+  L.polyline(stops.map(s => [s.lat, s.lon]), { color: '#ffc107', weight: 2, opacity: 0.5 }).addTo(map);
+}
+
+let driverMarker = null;
+
+if (IS_ACTIVE) {
+  const socket = io();
+  socket.on('connect', () => {
+    console.log('Socket connected, starting location tracking');
+    startLocationTracking(socket, SCHEDULE_ID, map, (lat, lon) => {
+      if (!driverMarker) {
+        driverMarker = L.circleMarker([lat, lon], {
+          radius: 10, color: '#0d6efd', fillColor: '#0d6efd', fillOpacity: 1
+        }).bindPopup('You are here').addTo(map);
+      } else {
+        driverMarker.setLatLng([lat, lon]);
+      }
+    });
+  });
+}
+
+// QR Scanner
+let html5QrCode = null;
+
+{% if schedule.status == 'active' %}
+document.getElementById('startScanBtn').addEventListener('click', () => {
+  if (html5QrCode) { html5QrCode.clear(); html5QrCode = null; }
+  html5QrCode = new Html5Qrcode("qr-reader");
+  html5QrCode.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: 250 },
+    async (decodedText) => {
+      html5QrCode.stop();
+      html5QrCode = null;
+      document.getElementById('scan_result').innerHTML =
+        '<span class="text-warning">Processing...</span>';
+      try {
+        const res = await fetch('/driver/checkin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: decodedText })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          document.getElementById('scan_result').innerHTML =
+            `<span class="text-success"><i class="bi bi-check-circle me-1"></i>${data.message}</span>`;
+          if (data.booking_id) updatePassengerUI(data.booking_id, 'checked_in');
+        } else {
+          document.getElementById('scan_result').innerHTML =
+            `<span class="text-danger"><i class="bi bi-x-circle me-1"></i>${data.message}</span>`;
+        }
+      } catch(e) {
+        document.getElementById('scan_result').innerHTML =
+          '<span class="text-danger">Error processing QR code.</span>';
+      }
+    },
+    () => {}
+  ).catch(err => console.error('QR scanner error:', err));
+});
+{% endif %}
+
+function updatePassengerUI(bookingId, status) {
+  const card = document.getElementById(`pax_${bookingId}`);
+  const badge = document.getElementById(`badge_${bookingId}`);
+  if (!card || !badge) return;
+  card.className = 'card border-secondary passenger-card ' + (status === 'checked_in' ? 'checked-in' : 'no-show');
+  badge.className = 'badge ' + (status === 'checked_in' ? 'bg-success' : 'bg-danger');
+  badge.textContent = status === 'checked_in' ? '✓' : 'NS';
+}
+
+async function markNoShow(bookingId) {
+  if (!confirm('Mark as No Show?')) return;
+  const res = await fetch(`/driver/noshow/${bookingId}`, { method: 'POST' });
+  const data = await res.json();
+  if (data.ok) updatePassengerUI(bookingId, 'no_show');
+}
+</script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+{% endblock %}

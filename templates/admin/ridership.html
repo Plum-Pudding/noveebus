@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Ridership — NoveeBus Admin{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-bar-chart me-2 text-warning"></i>Ridership Analytics</h4>
+
+<!-- Filter -->
+<div class="card border-secondary mb-4">
+  <div class="card-body">
+    <form method="GET" class="row g-2 align-items-end">
+      <div class="col-md-2">
+        <label class="form-label small">Route</label>
+        <select name="route_id" class="form-select form-select-sm bg-dark border-secondary text-white">
+          <option value="">All Routes</option>
+          {% for r in routes %}
+          <option value="{{ r.id }}" {{ 'selected' if route_id == r.id }}>{{ r.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Shift</label>
+        <select name="shift_id" class="form-select form-select-sm bg-dark border-secondary text-white">
+          <option value="">All Shifts</option>
+          {% for s in shifts %}
+          <option value="{{ s.id }}" {{ 'selected' if shift_id == s.id }}>{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">From</label>
+        <input type="date" name="start" value="{{ start }}" class="form-control form-control-sm bg-dark border-secondary text-white">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">To</label>
+        <input type="date" name="end" value="{{ end }}" class="form-control form-control-sm bg-dark border-secondary text-white">
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-warning btn-sm w-100">Apply Filter</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Charts -->
+<div class="row g-3 mb-4">
+  <div class="col-md-8">
+    <div class="card border-secondary">
+      <div class="card-header">Daily Ridership Trend</div>
+      <div class="card-body">
+        <canvas id="dailyChart" height="120"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card border-secondary">
+      <div class="card-header">By Route</div>
+      <div class="card-body">
+        <canvas id="routeChart" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Table -->
+<div class="card border-secondary">
+  <div class="card-header">
+    Booking Detail <span class="badge bg-secondary ms-1">{{ bookings|length }} records</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-dark table-sm table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Date</th><th>Route</th><th>Shift</th><th>Employee</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in bookings[:100] %}
+        <tr>
+          <td>{{ b.schedule.date.strftime('%d %b %Y') }}</td>
+          <td>{{ b.schedule.route.name }}</td>
+          <td>{{ b.schedule.shift.name }}</td>
+          <td>{{ b.user.name }} <span class="text-muted small">({{ b.user.employee_id }})</span></td>
+          <td>
+            {% if b.status == 'checked_in' %}
+              <span class="badge bg-success">Checked In</span>
+            {% elif b.status == 'booked' %}
+              <span class="badge bg-primary">Booked</span>
+            {% elif b.status == 'no_show' %}
+              <span class="badge bg-danger">No Show</span>
+            {% else %}
+              <span class="badge bg-secondary">{{ b.status }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted">No data for selected range.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const dailyDates = {{ chart_dates | tojson }};
+const dailyCounts = {{ chart_counts | tojson }};
+const routeNames = {{ route_names | tojson }};
+const routeVals = {{ route_vals | tojson }};
+
+const chartDefaults = {
+  responsive: true,
+  plugins: { legend: { labels: { color: '#adb5bd' } } },
+  scales: {
+    x: { ticks: { color: '#adb5bd' }, grid: { color: '#2d2d2d' } },
+    y: { ticks: { color: '#adb5bd' }, grid: { color: '#2d2d2d' }, beginAtZero: true }
+  }
+};
+
+new Chart(document.getElementById('dailyChart'), {
+  type: 'line',
+  data: {
+    labels: dailyDates,
+    datasets: [{
+      label: 'Bookings',
+      data: dailyCounts,
+      borderColor: '#ffc107',
+      backgroundColor: 'rgba(255,193,7,0.15)',
+      tension: 0.3,
+      fill: true,
+      pointBackgroundColor: '#ffc107'
+    }]
+  },
+  options: chartDefaults
+});
+
+new Chart(document.getElementById('routeChart'), {
+  type: 'doughnut',
+  data: {
+    labels: routeNames,
+    datasets: [{
+      data: routeVals,
+      backgroundColor: ['#0d6efd', '#ffc107', '#198754', '#dc3545']
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'bottom', labels: { color: '#adb5bd' } } }
+  }
+});
+</script>
+{% endblock %}

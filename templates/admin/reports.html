@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Reports — NoveeBus Admin{% endblock %}
+
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-file-earmark-spreadsheet me-2 text-warning"></i>Reports & Export</h4>
+
+<div class="row g-4">
+  <div class="col-md-6">
+    <div class="card border-secondary">
+      <div class="card-header"><i class="bi bi-download me-2 text-warning"></i>CSV Export</div>
+      <div class="card-body">
+        <p class="text-muted small">Export all booking records for a date range as CSV.</p>
+        <form method="GET" action="{{ url_for('admin.export_csv') }}">
+          <div class="mb-3">
+            <label class="form-label small">Start Date</label>
+            <input type="date" name="start" class="form-control bg-dark border-secondary text-white"
+                   value="{{ today }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label small">End Date</label>
+            <input type="date" name="end" class="form-control bg-dark border-secondary text-white"
+                   value="{{ today }}">
+          </div>
+          <button type="submit" class="btn btn-warning w-100">
+            <i class="bi bi-download me-1"></i>Download CSV
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card border-secondary">
+      <div class="card-header"><i class="bi bi-info-circle me-2 text-warning"></i>Report Info</div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">The CSV export includes:</p>
+        <ul class="text-muted small">
+          <li>Date, Route, Shift</li>
+          <li>Employee ID, Name</li>
+          <li>Booking status (booked/checked_in/no_show/cancelled)</li>
+          <li>Recurring flag</li>
+          <li>Booking created timestamp</li>
+        </ul>
+        <hr class="border-secondary">
+        <p class="text-muted small mb-0">
+          For ridership analytics with charts, visit
+          <a href="{{ url_for('admin.ridership') }}" class="text-warning">Ridership</a>.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

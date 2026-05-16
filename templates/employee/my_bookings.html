@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}My Bookings — NoveeBus{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="mb-0"><i class="bi bi-ticket-perforated me-2 text-warning"></i>My Bookings</h4>
+  <a href="{{ url_for('employee.book') }}" class="btn btn-warning btn-sm">
+    <i class="bi bi-plus-circle me-1"></i>New Booking
+  </a>
+</div>
+
+{% if show_qr %}
+<!-- QR Modal / display -->
+<div class="card border-warning mb-4">
+  <div class="card-body text-center py-4">
+    <h6 class="text-warning mb-3"><i class="bi bi-check-circle me-1"></i>Booking Confirmed!</h6>
+    <p class="text-muted small mb-3">
+      {{ show_qr.schedule.route.name }} · {{ show_qr.schedule.shift.name }} ·
+      {{ show_qr.schedule.date.strftime('%d %b %Y') }}
+    </p>
+    <img src="{{ url_for('employee.qr_image', booking_id=show_qr.id) }}"
+         class="rounded border border-white" style="max-width:200px;" alt="QR Code">
+    <p class="text-muted small mt-3">Show this QR code to the driver for check-in.</p>
+    <a href="{{ url_for('employee.my_bookings') }}" class="btn btn-outline-light btn-sm mt-1">
+      View All Bookings
+    </a>
+  </div>
+</div>
+{% endif %}
+
+<!-- Upcoming -->
+<h6 class="text-muted mb-3">Upcoming</h6>
+{% if bookings %}
+<div class="card border-secondary mb-4">
+  <div class="table-responsive">
+    <table class="table table-dark table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Route</th>
+          <th>Shift</th>
+          <th>Status</th>
+          <th>Recurring</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in bookings %}
+        <tr>
+          <td>{{ b.schedule.date.strftime('%d %b %Y') }}</td>
+          <td>
+            <strong>{{ b.schedule.route.name }}</strong>
+            <div class="small text-muted">{{ b.schedule.route.origin }} → {{ b.schedule.route.destination }}</div>
+          </td>
+          <td>{{ b.schedule.shift.name }}<br><span class="text-muted small">{{ b.schedule.shift.departure_time }}</span></td>
+          <td>
+            {% if b.status == 'booked' %}
+              <span class="badge bg-primary">Booked</span>
+            {% elif b.status == 'checked_in' %}
+              <span class="badge bg-success">Checked In</span>
+            {% elif b.status == 'waitlisted' %}
+              <span class="badge bg-warning text-dark">Waitlisted</span>
+            {% elif b.status == 'cancelled' %}
+              <span class="badge bg-secondary">Cancelled</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if b.recurring %}<span class="badge bg-info text-dark">Recurring</span>{% else %}—{% endif %}
+          </td>
+          <td>
+            <div class="d-flex gap-1">
+              <a href="{{ url_for('employee.qr_image', booking_id=b.id) }}" target="_blank"
+                 class="btn btn-sm btn-outline-secondary" title="QR Code">
+                <i class="bi bi-qr-code"></i>
+              </a>
+              {% if b.schedule.status == 'active' %}
+              <a href="{{ url_for('employee.live_map', schedule_id=b.schedule.id) }}"
+                 class="btn btn-sm btn-outline-info" title="Track Bus">
+                <i class="bi bi-geo-alt"></i>
+              </a>
+              {% endif %}
+              {% if b.status in ['booked', 'waitlisted'] %}
+              <form method="POST" action="{{ url_for('employee.cancel_booking', booking_id=b.id) }}"
+                    onsubmit="return confirm('Cancel this booking?')">
+                <button class="btn btn-sm btn-outline-danger" title="Cancel">
+                  <i class="bi bi-x-circle"></i>
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="card border-secondary mb-4">
+  <div class="card-body text-center py-4 text-muted">
+    No upcoming bookings. <a href="{{ url_for('employee.book') }}" class="text-warning">Book a seat →</a>
+  </div>
+</div>
+{% endif %}
+
+<!-- Past bookings -->
+{% if past %}
+<h6 class="text-muted mb-3">History</h6>
+<div class="card border-secondary">
+  <div class="table-responsive">
+    <table class="table table-dark table-sm mb-0">
+      <thead>
+        <tr><th>Date</th><th>Route</th><th>Shift</th><th>Status</th></tr>
+      </thead>
+      <tbody class="text-muted">
+        {% for b in past %}
+        <tr>
+          <td>{{ b.schedule.date.strftime('%d %b %Y') }}</td>
+          <td>{{ b.schedule.route.name }}</td>
+          <td>{{ b.schedule.shift.name }}</td>
+          <td>
+            {% if b.status == 'checked_in' %}
+              <span class="badge bg-success">Checked In</span>
+            {% elif b.status == 'no_show' %}
+              <span class="badge bg-danger">No Show</span>
+            {% elif b.status == 'cancelled' %}
+              <span class="badge bg-secondary">Cancelled</span>
+            {% else %}
+              <span class="badge bg-dark border border-secondary">{{ b.status }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}NoveeBus{% endblock %}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+{% if current_user.is_authenticated %}
+<div class="d-flex" id="wrapper">
+  <!-- Sidebar -->
+  <nav id="sidebar" class="d-flex flex-column flex-shrink-0 p-3 text-bg-dark">
+    <a href="/" class="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-white text-decoration-none">
+      <i class="bi bi-bus-front-fill fs-4 me-2 text-warning"></i>
+      <span class="fs-5 fw-bold">NoveeBus</span>
+    </a>
+    <hr>
+    <ul class="nav nav-pills flex-column mb-auto">
+      {% if current_user.role == 'admin' %}
+        <li class="nav-item">
+          <a href="{{ url_for('admin.dashboard') }}" class="nav-link text-white {% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
+            <i class="bi bi-speedometer2 me-2"></i>Dashboard
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('admin.routes') }}" class="nav-link text-white {% if request.endpoint == 'admin.routes' %}active{% endif %}">
+            <i class="bi bi-map me-2"></i>Routes
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('admin.schedules') }}" class="nav-link text-white {% if request.endpoint == 'admin.schedules' %}active{% endif %}">
+            <i class="bi bi-calendar3 me-2"></i>Schedules
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('admin.users') }}" class="nav-link text-white {% if request.endpoint == 'admin.users' %}active{% endif %}">
+            <i class="bi bi-people me-2"></i>Users
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('admin.ridership') }}" class="nav-link text-white {% if request.endpoint == 'admin.ridership' %}active{% endif %}">
+            <i class="bi bi-bar-chart me-2"></i>Ridership
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('admin.reports') }}" class="nav-link text-white {% if request.endpoint == 'admin.reports' %}active{% endif %}">
+            <i class="bi bi-file-earmark-spreadsheet me-2"></i>Reports
+          </a>
+        </li>
+      {% elif current_user.role == 'driver' %}
+        <li class="nav-item">
+          <a href="{{ url_for('driver.dashboard') }}" class="nav-link text-white {% if request.endpoint == 'driver.dashboard' %}active{% endif %}">
+            <i class="bi bi-speedometer2 me-2"></i>My Trips
+          </a>
+        </li>
+      {% else %}
+        <li class="nav-item">
+          <a href="{{ url_for('employee.dashboard') }}" class="nav-link text-white {% if request.endpoint == 'employee.dashboard' %}active{% endif %}">
+            <i class="bi bi-house me-2"></i>Home
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('employee.book') }}" class="nav-link text-white {% if request.endpoint == 'employee.book' %}active{% endif %}">
+            <i class="bi bi-plus-circle me-2"></i>Book a Seat
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('employee.my_bookings') }}" class="nav-link text-white {% if request.endpoint == 'employee.my_bookings' %}active{% endif %}">
+            <i class="bi bi-ticket-perforated me-2"></i>My Bookings
+          </a>
+        </li>
+      {% endif %}
+    </ul>
+    <hr>
+    <div class="dropdown">
+      <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle" data-bs-toggle="dropdown">
+        <i class="bi bi-person-circle me-2 fs-5"></i>
+        <strong>{{ current_user.name }}</strong>
+      </a>
+      <ul class="dropdown-menu dropdown-menu-dark text-small shadow">
+        <li><span class="dropdown-item-text small text-muted">{{ current_user.employee_id }} · {{ current_user.role }}</span></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}"><i class="bi bi-box-arrow-right me-1"></i>Sign out</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Page content -->
+  <div id="page-content" class="flex-grow-1">
+    <!-- Top bar (mobile) -->
+    <nav class="navbar navbar-dark bg-dark d-md-none border-bottom">
+      <div class="container-fluid">
+        <button class="btn btn-outline-secondary btn-sm" id="sidebarToggle">
+          <i class="bi bi-list"></i>
+        </button>
+        <span class="navbar-brand mb-0 h6"><i class="bi bi-bus-front-fill text-warning me-1"></i>NoveeBus</span>
+        <a href="{{ url_for('auth.logout') }}" class="btn btn-sm btn-outline-danger">
+          <i class="bi bi-box-arrow-right"></i>
+        </a>
+      </div>
+    </nav>
+
+    <div class="container-fluid p-4">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for cat, msg in messages %}
+            <div class="alert alert-{{ cat }} alert-dismissible fade show" role="alert">
+              {{ msg }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+</div>
+{% else %}
+  <div class="container-fluid p-0">
+    {% block auth_content %}{% endblock %}
+  </div>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+  // Mobile sidebar toggle
+  const toggler = document.getElementById('sidebarToggle');
+  if (toggler) {
+    toggler.addEventListener('click', () => {
+      document.getElementById('sidebar').classList.toggle('show');
+    });
+  }
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

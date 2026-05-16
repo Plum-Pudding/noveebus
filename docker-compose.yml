@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  noveebus:
+    build: .
+    image: noveebus:latest
+    container_name: noveebus
+    ports:
+      - "8089:8089"
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    restart: unless-stopped
